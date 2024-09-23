@@ -1,6 +1,8 @@
 import numpy as np
-from scipy.optimize import linprog
 import pulp
+import json
+from tqdm import tqdm
+
 
 class IntegerLPProblem:
     def __init__(self, num_variables, num_constraints):
@@ -12,62 +14,84 @@ class IntegerLPProblem:
         self.solution = None
 
     def generate_problem(self):
-        # Generate objective coefficients
         self.objective = np.random.randint(-10, 11, size=self.num_variables)
-
-        # Generate constraint coefficients and right-hand side
         self.constraints = np.random.randint(-5, 6, size=(self.num_constraints, self.num_variables))
         rhs = np.random.randint(1, 51, size=self.num_constraints)
-
-        # Combine coefficients and RHS
         self.constraints = np.column_stack((self.constraints, rhs))
-
-        # Set bounds for variables (0 to 10 for this example)
         self.bounds = [(0, 10) for _ in range(self.num_variables)]
 
     def solve(self):
-        # Create a PuLP problem
         prob = pulp.LpProblem("Integer LP Problem", pulp.LpMinimize)
-
-        # Define variables
         vars = [pulp.LpVariable(f'x{i}', lowBound=self.bounds[i][0], upBound=self.bounds[i][1], cat='Integer')
                 for i in range(self.num_variables)]
-
-        # Set objective
         prob += pulp.lpSum(self.objective[i] * vars[i] for i in range(self.num_variables))
-
-        # Add constraints
         for i in range(self.num_constraints):
-            prob += pulp.lpSum(self.constraints[i, j] * vars[j] for j in range(self.num_variables)) <= self.constraints[i, -1]
-
-        # Solve the problem
+            prob += pulp.lpSum(self.constraints[i, j] * vars[j] for j in range(self.num_variables)) <= self.constraints[
+                i, -1]
         prob.solve()
-
-        # Store the solution
         self.solution = {
             'status': pulp.LpStatus[prob.status],
             'objective_value': pulp.value(prob.objective),
             'variables': [var.varValue for var in prob.variables()]
         }
 
-    def __str__(self):
-        problem_str = "Integer Linear Programming Problem:\n"
-        problem_str += f"Minimize: {' + '.join([f'{c}x{i}' for i, c in enumerate(self.objective)])}\n"
-        problem_str += "Subject to:\n"
-        for i, constraint in enumerate(self.constraints):
-            problem_str += f"  {' + '.join([f'{c}x{j}' for j, c in enumerate(constraint[:-1])])} <= {constraint[-1]}\n"
-        problem_str += f"Bounds: {self.bounds}\n"
-        if self.solution:
-            problem_str += f"Solution: {self.solution}\n"
-        return problem_str
+    def to_dict(self):
+        return {
+            'num_variables': self.num_variables,
+            'num_constraints': self.num_constraints,
+            'objective': self.objective.tolist(),
+            'constraints': self.constraints.tolist(),
+            'bounds': self.bounds,
+            'solution': self.solution
+        }
+
+
+class LPDatasetGenerator:
+    def __init__(self, num_problems, min_variables, max_variables, min_constraints, max_constraints):
+        self.num_problems = num_problems
+        self.min_variables = min_variables
+        self.max_variables = max_variables
+        self.min_constraints = min_constraints
+        self.max_constraints = max_constraints
+        self.problems = []
+
+    def generate_dataset(self):
+        for _ in tqdm(range(self.num_problems), desc="Generating problems"):
+            num_vars = np.random.randint(self.min_variables, self.max_variables + 1)
+            num_cons = np.random.randint(self.min_constraints, self.max_constraints + 1)
+            problem = IntegerLPProblem(num_vars, num_cons)
+            problem.generate_problem()
+            problem.solve()
+            self.problems.append(problem.to_dict())
+
+    def save_to_file(self, filename):
+        with open(filename, 'w') as f:
+            json.dump(self.problems, f)
+
+    def load_from_file(self, filename):
+        with open(filename, 'r') as f:
+            self.problems = json.load(f)
+
 
 # Example usage
 if __name__ == "__main__":
     np.random.seed(42)  # For reproducibility
-    problem = IntegerLPProblem(num_variables=3, num_constraints=2)
-    problem.generate_problem()
-    print("Generated problem:")
-    print(problem)
-    problem.solve()
-    print("\nSolved problem:")
-    print(problem)
+
+    # Generate a dataset of 1000 problems
+    generator = LPDatasetGenerator(num_problems=1000, min_variables=2, max_variables=5, min_constraints=2,
+                                   max_constraints=5)
+    generator.generate_dataset()
+
+    # Save the dataset to a file
+    generator.save_to_file('lp_dataset.json')
+
+    print(f"Generated and saved {len(generator.problems)} problems to lp_dataset.json")
+
+    # Example of loading the dataset
+    new_generator = LPDatasetGenerator(0, 0, 0, 0, 0)  # Parameters don't matter for loading
+    new_generator.load_from_file('lp_dataset.json')
+    print(f"Loaded {len(new_generator.problems)} problems from lp_dataset.json")
+
+    # Print the first problem as an example
+    print("\nExample problem:")
+    print(json.dumps(new_generator.problems[0], indent=2))
