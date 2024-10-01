@@ -2,6 +2,7 @@ import numpy as np
 import pulp
 import json
 from tqdm import tqdm
+import pandas as pd
 
 
 class IntegerLPProblem:
@@ -78,7 +79,7 @@ if __name__ == "__main__":
     np.random.seed(42)  # For reproducibility
 
     # Generate a dataset of 1000 problems
-    generator = LPDatasetGenerator(num_problems=1000, min_variables=2, max_variables=5, min_constraints=2,
+    generator = LPDatasetGenerator(num_problems=10, min_variables=2, max_variables=5, min_constraints=2,
                                    max_constraints=5)
     generator.generate_dataset()
 
@@ -95,3 +96,10 @@ if __name__ == "__main__":
     # Print the first problem as an example
     print("\nExample problem:")
     print(json.dumps(new_generator.problems[0], indent=2))
+
+    # Create a pandas DataFrame from the loaded problems
+    df = pd.DataFrame(new_generator.problems)
+
+    # Save the DataFrame to a CSV file
+    df.to_csv('lp_dataset.csv', index=False)
+    print(f"\nCreated pandas DataFrame with {len(df)} problems and saved to lp_dataset.csv")
