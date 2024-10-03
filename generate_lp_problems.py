@@ -1,15 +1,16 @@
 import numpy as np
 import pandas as pd
-import json
 from tqdm import tqdm
 import pulp
 from deap import base, creator, tools, algorithms
 import random
 from sklearn.model_selection import train_test_split
 import time
+import os
 from openpyxl import Workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
-from openpyxl.styles import Font, Alignment
+from openpyxl.styles import Font, Alignment, PatternFill
+from openpyxl.worksheet.table import Table, TableStyleInfo
 
 class IntegerLPProblem:
     def __init__(self, num_variables, num_constraints):
@@ -228,10 +229,91 @@ class Experiment:
 
     def generate_excel_report(self, metrics):
         wb = Workbook()
-        ws = wb.active
-        ws.title = "Overall Metrics"
 
+        # Explanation Sheet
+        ws_explanation = wb.active
+        ws_explanation.title = "Explanation"
+        self._add_explanation(ws_explanation)
+
+        # Master List of Problems
+        ws_master = wb.create_sheet("Master List of Problems")
+        self._add_master_list(ws_master)
+
+        # Overall Metrics Sheet
+        ws_metrics = wb.create_sheet("Overall Metrics")
+        self._add_overall_metrics(ws_metrics, metrics)
+
+        # Combined Results Sheet
+        ws_combined = wb.create_sheet("Combined Results")
+        self._add_combined_results(ws_combined)
+
+        # Top 5 Speedup Sheet
+        ws_top_speedup = wb.create_sheet("Top 5 Speedup")
+        self._add_top_speedup(ws_top_speedup)
+
+        # Bottom 5 Speedup Sheet
+        ws_bottom_speedup = wb.create_sheet("Bottom 5 Speedup")
+        self._add_bottom_speedup(ws_bottom_speedup)
+
+        # Mismatches Sheet
+        ws_mismatches = wb.create_sheet("Mismatches")
+        self._add_mismatches(ws_mismatches, metrics)
+
+        # Apply styling to all sheets
+        for sheet in wb:
+            self._style_sheet(sheet)
+
+        # Save the workbook
+        excel_filename = '/Users/marybeth/Desktop/p_solver_results.xlsx'
+        os.makedirs(os.path.dirname(excel_filename), exist_ok=True)
+        wb.save(excel_filename)
+        print(f"\nKey metrics and results have been saved to {excel_filename}")
+
+    def _add_explanation(self, ws):
+        explanations = [
+            ("Sheet", "Description"),
+            ("Explanation", "This sheet, providing an overview of the workbook contents."),
+            ("Master List of Problems",
+             "A comprehensive list of all problems generated, including their objectives, constraints, and solutions."),
+            ("Overall Metrics", "Key performance metrics of the Genetic Algorithm (GA) compared to PuLP."),
+            ("Combined Results",
+             "Detailed results for each problem in the test set, comparing GA and PuLP performance."),
+            ("Top 5 Speedup", "The 5 problems where GA had the highest speedup compared to PuLP."),
+            ("Bottom 5 Speedup", "The 5 problems where GA had the lowest speedup compared to PuLP."),
+            ("Mismatches", "Details of problems where GA's solution didn't match PuLP's optimal solution."),
+            ("", ""),
+            ("Key Terms", "Explanation"),
+            ("Objective", "The function to be minimized in the linear programming problem."),
+            ("Constraints", "The conditions that the solution must satisfy."),
+            ("GA", "Genetic Algorithm, a heuristic method used to solve optimization problems."),
+            ("PuLP", "An exact solver used as a benchmark for the GA's performance."),
+            ("Speedup Factor", "The ratio of PuLP solve time to GA solve time. A factor > 1 means GA was faster."),
+            ("MAE",
+             "Mean Absolute Error, measuring the average difference between predicted and actual objective values.")
+        ]
+        for row in explanations:
+            ws.append(row)
+
+    def _add_master_list(self, ws):
+        headers = ["Problem ID", "Num Variables", "Num Constraints", "Objective", "Constraints", "Bounds",
+                   "Optimal Solution", "Optimal Objective Value"]
+        ws.append(headers)
+        for _, problem in self.problems_df.iterrows():
+            row = [
+                _,
+                problem['num_variables'],
+                problem['num_constraints'],
+                str(problem['objective']),
+                str(problem['constraints']),
+                str(problem['bounds']),
+                str(problem['solution']['variables']),
+                problem['solution']['objective_value']
+            ]
+            ws.append(row)
+
+    def _add_overall_metrics(self, ws, metrics):
         metrics_data = [
+            ("Metric", "Value"),
             ("Training Mean Absolute Error", metrics['train_mae']),
             ("Testing Mean Absolute Error", metrics['test_mae']),
             ("Percentage of problems where GA didn't find the optimal solution", metrics['mismatch_percentage']),
@@ -241,60 +323,84 @@ class Experiment:
             ("Average speedup factor (PuLP time / GA time)", metrics['avg_speedup']),
             ("Median speedup factor", metrics['median_speedup'])
         ]
+        for row in metrics_data:
+            ws.append(row)
 
-        for row, (metric, value) in enumerate(metrics_data, start=1):
-            ws.cell(row=row, column=1, value=metric)
-            ws.cell(row=row, column=2, value=value)
-            ws.cell(row=row, column=2).number_format = '0.00'
-
-        ws_combined = wb.create_sheet("Combined Results")
+    def _add_combined_results(self, ws):
         for r in dataframe_to_rows(self.results_combined, index=False, header=True):
-            ws_combined.append(r)
+            ws.append(r)
 
-        ws_top_speedup = wb.create_sheet("Top 5 Speedup")
-        top_speedup = self.results_combined.nlargest(5, 'speedup_factor')[['problem_id', 'speedup_factor', 'ga_solve_time', 'pulp_solve_time']]
+    def _add_top_speedup(self, ws):
+        top_speedup = self.results_combined.nlargest(5, 'speedup_factor')[
+            ['problem_id', 'speedup_factor', 'ga_solve_time', 'pulp_solve_time']]
         for r in dataframe_to_rows(top_speedup, index=False, header=True):
-            ws_top_speedup.append(r)
+            ws.append(r)
 
-        ws_bottom_speedup = wb.create_sheet("Bottom 5 Speedup")
-        bottom_speedup = self.results_combined.nsmallest(5, 'speedup_factor')[['problem_id', 'speedup_factor', 'ga_solve_time', 'pulp_solve_time']]
+    def _add_bottom_speedup(self, ws):
+        bottom_speedup = self.results_combined.nsmallest(5, 'speedup_factor')[
+            ['problem_id', 'speedup_factor', 'ga_solve_time', 'pulp_solve_time']]
         for r in dataframe_to_rows(bottom_speedup, index=False, header=True):
-            ws_bottom_speedup.append(r)
+            ws.append(r)
 
-        ws_mismatches = wb.create_sheet("Mismatches")
+    def _add_mismatches(self, ws, metrics):
         if not metrics['mismatches'].empty:
             for r in dataframe_to_rows(metrics['mismatches'], index=False, header=True):
-                ws_mismatches.append(r)
+                ws.append(r)
         else:
-            ws_mismatches['A1'] = "No mismatches found. The genetic algorithm found the optimal solution for all test problems."
+            ws['A1'] = "No mismatches found. The genetic algorithm found the optimal solution for all test problems."
 
-        for sheet in wb:
-            for cell in sheet[1]:
-                cell.font = Font(bold=True)
-            for column in sheet.columns:
-                max_length = 0
-                column_letter = column[0].column_letter
-                for cell in column:
-                    try:
-                        if len(str(cell.value)) > max_length:
-                            max_length = len(cell.value)
-                    except:
-                        pass
-                adjusted_width = (max_length + 2)
-                sheet.column_dimensions[column_letter].width = adjusted_width
+    def _style_sheet(self, ws):
+        for cell in ws[1]:
+            cell.font = Font(bold=True)
+            cell.fill = PatternFill(start_color="DDDDDD", end_color="DDDDDD", fill_type="solid")
 
-        excel_filename = '/Users/marybeth/Desktop/p_solver_results.xlsx'
-        wb.save(excel_filename)
-        print(f"\nKey metrics and results have been saved to {excel_filename}")
+        for column in ws.columns:
+            max_length = 0
+            column_letter = column[0].column_letter
+            for cell in column:
+                try:
+                    if len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except:
+                    pass
+            adjusted_width = (max_length + 2) * 1.2
+            ws.column_dimensions[column_letter].width = adjusted_width
 
-if __name__ == "__main__":
+        table = Table(displayName=f"Table_{ws.title.replace(' ', '_')}", ref=ws.dimensions)
+        style = TableStyleInfo(name="TableStyleMedium9", showFirstColumn=False,
+                               showLastColumn=False, showRowStripes=True, showColumnStripes=False)
+        table.tableStyleInfo = style
+        ws.add_table(table)
+
+
+def main():
+    # Set random seeds for reproducibility
     np.random.seed(42)
     random.seed(42)
 
+    # Create and run the experiment
     experiment = Experiment(num_problems=1000, min_variables=2, max_variables=5,
                             min_constraints=2, max_constraints=5)
+
+    print("Starting experiment...")
     experiment.run_experiment()
+
+    print("Calculating metrics...")
     metrics = experiment.calculate_metrics()
+
+    print("Generating Excel report...")
     experiment.generate_excel_report(metrics)
 
-    print("\nExperiment completed. Check the Excel file for detailed results.")
+    print("Experiment completed. Check the Excel file for detailed results.")
+
+    # Print some key metrics to console
+    print("\nKey Metrics:")
+    print(f"Training Mean Absolute Error: {metrics['train_mae']:.4f}")
+    print(f"Testing Mean Absolute Error: {metrics['test_mae']:.4f}")
+    print(f"Percentage of problems where GA didn't find the optimal solution: {metrics['mismatch_percentage']:.2f}%")
+    print(f"Average speedup factor (PuLP time / GA time): {metrics['avg_speedup']:.2f}")
+    print(f"Percentage of problems where GA was faster: {metrics['ga_faster_percentage']:.2f}%")
+
+
+if __name__ == "__main__":
+    main()
