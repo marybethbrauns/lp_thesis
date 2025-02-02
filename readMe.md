@@ -1,367 +1,116 @@
-# Integer Linear Programming: A Comparative Analysis of PuLP and Genetic Algorithm Solutions
+# Mary Elizabeth Brauns
+## Senior Thesis with Dr. David Murphy  
+### Hillsdale College Department of Mathematics  
 
-**Author**: Mary Elizabeth Brauns  
-**Adviser**: Dr. David Murphy  
-**Institution**: Hillsdale College, Department of Mathematics  
+# A Comparative Study of AI-Based Approaches to Linear Programming:  
+## Classical Methods, Genetic Algorithms, and Neural Networks  
 
-## Abstract
+## Overview  
+This project explores different approaches to solving linear programming (LP) problems. In particular, it compares the performance of a traditional exact solver (using SciPy's HiGHS simplex method) with two AI-based methods:
 
-This research presents a rigorous analysis and implementation of Integer Linear Programming (ILP) solution methodologies, comparing the traditional exact method implemented through PuLP with a heuristic approach using Genetic Algorithms (GA). Through detailed mathematical analysis and computational experiments, we demonstrate the relative strengths and limitations of each approach, providing insights into their practical applications and performance characteristics.
+- A Genetic Algorithm (GA) implementation, which includes a warm-start technique to leverage information from previous similar problems.
+- A Neural Network trained to approximate the optimal solution of LP problems.
 
-## 1. Introduction and Mathematical Foundations
+The main goal is to evaluate each method in terms of solution quality, feasibility, and computational time. Additionally, the trade-offs between accuracy and speed are discussed in detail. Although AI-based methods offer flexibility and potential advantages in generalization and hybrid applications, they often come at the cost of increased computational overhead compared to specialized methods.
 
-# Standard Form
+## Background  
+### Linear Programming (LP)  
+Linear Programming is an optimization technique used to find the best solution (maximum or minimum) for a linear objective function subject to a set of linear constraints. A general LP problem is formulated as follows:
 
-The optimization problem seeks to minimize a linear objective function subject to linear constraints. Here's the mathematical formulation:
+#### Objective Function:  
+\[ \text{Minimize: } Z = c_1 x_1 + c_2 x_2 + \dots + c_n x_n \]
 
-$$
-\text{Minimize } Z = c_1x_1 + c_2x_2 + \dots + c_nx_n
-$$
+#### Subject to Constraints:  
+\[ a_{11} x_1 + a_{12} x_2 + \dots + a_{1n} x_n \leq b_1 \]
+\[ a_{21} x_1 + a_{22} x_2 + \dots + a_{2n} x_n \leq b_2 \]
+\[ \vdots \]
+\[ a_{m1} x_1 + a_{m2} x_2 + \dots + a_{mn} x_n \leq b_m \]
 
-Subject to the following constraints:
+#### And:  
+\[ x_1, x_2, \dots, x_n \geq 0 \]
 
-$$
-\begin{aligned}
-a_{11}x_1 + a_{12}x_2 + \dots + a_{1n}x_n &\leq b_1 \\
-a_{21}x_1 + a_{22}x_2 + \dots + a_{2n}x_n &\leq b_2 \\
-&\vdots \\
-a_{m1}x_1 + a_{m2}x_2 + \dots + a_{mn}x_n &\leq b_m
-\end{aligned}
-$$
+Classical LP solvers such as the Simplex Method or Interior-Point Methods exploit the problem’s linearity and convexity to obtain exact solutions rapidly.
 
-With integer constraints:
+### AI-Based Approaches  
+While classical methods are highly optimized for linear problems, AI-based methods have their own merits, especially in more general or complex scenarios. Two notable approaches are:
 
-$$
-x_1, x_2, \dots, x_n \in \mathbb{Z}
-$$
+#### Genetic Algorithms (GAs)  
+GAs are heuristic, population-based search algorithms that evolve a set of candidate solutions over several generations using selection, crossover, and mutation operators. They are general-purpose and can be applied to a wide range of optimization problems but do not exploit the linear structure of LPs. When used on LPs, a GA typically requires many iterations to converge to a good solution, leading to increased computational time.
 
-And non-negativity conditions:
+#### Neural Networks  
+A neural network can be trained to learn the mapping from the parameters of an LP (such as the coefficients of the objective function and constraints) to the optimal solution. Once trained, the network can provide extremely fast approximations via a single forward pass. However, its accuracy is limited by the quality of the training data and the model architecture, and it does not guarantee exact optimality.
 
-$$
-x_i \geq 0 \quad \forall i \in \{1, \dots, n\}
-$$
+## Solution Methods  
+### 1. Classical Solver: Simplex (HiGHS)  
+The simplex method, as implemented in SciPy’s `linprog`, finds the optimal solution by moving along the vertices of the feasible region defined by the constraints. For small LP problems, the simplex method is extremely fast—often taking less than one millisecond.
 
-# Matrix Notation
-
-For computational implementation, we can express the problem more compactly using matrix notation:
-
-$$
-\text{Minimize } \quad c^T x
-$$
-
-Subject to:
-
-$$
-\begin{pmatrix}
-a_{11} & a_{12} & \dots & a_{1n} \\
-a_{21} & a_{22} & \dots & a_{2n} \\
-\vdots & \vdots & \ddots & \vdots \\
-a_{m1} & a_{m2} & \dots & a_{mn}
-\end{pmatrix}
-\begin{pmatrix}
-x_1 \\
-x_2 \\
-\vdots \\
-x_n
-\end{pmatrix}
-\leq
-\begin{pmatrix}
-b_1 \\
-b_2 \\
-\vdots \\
-b_m
-\end{pmatrix}
-$$
-
-With constraints:
-
-$$
-x \in \mathbb{Z}^n, \quad x \geq 0
-$$
-
-### 1.2 Solution Methodologies
-
-#### 1.2.1 Exact Methods (PuLP)
-PuLP implements a Branch and Bound algorithm that:
-1. Relaxes integer constraints
-2. Solves resulting LP problems
-3. Systematically explores the solution space
-4. Guarantees global optimality
-
-#### 1.2.2 Heuristic Methods (Genetic Algorithm)
-The GA approach:
-1. Maintains a population of candidate solutions
-2. Evolves solutions through genetic operators
-3. Converges to high-quality (but not necessarily optimal) solutions
-4. Offers improved computational efficiency for large problems
-
-## 2. Implementation Framework
-
-### 2.1 PuLP Implementation
-
-The PuLP solver is implemented through the following structured approach:
-
+#### Example Code:  
 ```python
-def solve_pulp(obj, constraints):
-    # Initialize the minimization problem
-    prob = pulp.LpProblem("ILP", pulp.LpMinimize)
-    
-    # Define integer decision variables
-    vars = [pulp.LpVariable(f'x{i}', cat='Integer') 
-            for i in range(len(obj))]
-    
-    # Set objective function
-    prob += pulp.lpSum(obj[i] * vars[i] for i in range(len(obj)))
-    
-    # Add constraints
-    for constraint in constraints:
-        prob += pulp.lpSum(constraint[j] * vars[j] 
-                          for j in range(len(obj))) <= constraint[-1]
-    
-    # Solve and return results
-    prob.solve()
-    return {
-        "status": pulp.LpStatus[prob.status],
-        "objective_value": pulp.value(prob.objective),
-        "variables": [v.varValue for v in vars],
-        "solve_time": prob.solutionTime,
-    }
+from scipy.optimize import linprog
+import time
+
+def solve_lp_simplex(lp):
+    c, A_ub, b_ub, bounds = lp["c"], lp["A_ub"], lp["b_ub"], lp["bounds"]
+    start_time = time.time()
+    res = linprog(c, A_ub=A_ub, b_ub=b_ub, bounds=bounds, method='highs')
+    solve_time = time.time() - start_time
+    if res.success:
+        return res.x, res.fun, solve_time
+    else:
+        return None, None, solve_time
 ```
 
-### 2.2 Problem Generation Framework
+### 2. Genetic Algorithm with Warm Starting  
+A GA is employed to search for near-optimal solutions. In this implementation, a warm-start approach is used—meaning that the final population of one LP problem is passed as the initial population for the next. This can potentially reduce the number of generations needed for convergence.
 
-To facilitate systematic testing and comparison, we implement a controlled problem generation system:
+### 3. Neural Network Surrogate Solver  
+A neural network is trained to approximate the mapping from LP parameters to the optimal solution. This surrogate model is built using a feedforward network with a few hidden layers. 
 
+#### Example Training Code:  
 ```python
-def generate_problem(num_vars, num_constraints):
-    """
-    Generates random ILP problems with controlled characteristics
-    
-    Parameters:
-    num_vars: Number of decision variables
-    num_constraints: Number of linear constraints
-    
-    Returns:
-    obj: Objective function coefficients
-    constraints: Matrix of constraint coefficients and bounds
-    """
-    # Generate random objective coefficients
-    obj = np.random.randint(-10, 11, num_vars)
-    
-    # Generate constraint coefficients and right-hand sides
-    constraints = np.hstack([
-        np.random.randint(-5, 6, (num_constraints, num_vars)),
-        np.random.randint(1, 51, (num_constraints, 1))
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras import layers, models
+
+def build_model(input_dim, output_dim):
+    model = models.Sequential([
+        layers.Dense(64, activation='relu', input_shape=(input_dim,)),
+        layers.Dense(64, activation='relu'),
+        layers.Dense(32, activation='relu'),
+        layers.Dense(output_dim, activation='linear')
     ])
-    return obj, constraints
+    model.compile(optimizer='adam', loss='mse')
+    return model
 ```
 
-## 3. Genetic Algorithm Implementation
+## Experimental Setup and Workflow  
+### Dataset Generation:  
+A large dataset of LP instances is generated. Each instance is solved using the simplex method to provide ground truth solutions.
 
-### 3.1 Chromosome Representation
+### Testing and Comparison:  
+For a set of test LP instances, the following is performed:
 
-The GA implementation requires careful consideration of how to represent ILP solutions as chromosomes. Each chromosome represents a potential solution vector $x \in \mathbb{Z}^n$:
+- Each LP is solved using the simplex method.
+- The GA (with warm starting) is applied to find a near-optimal solution.
+- The neural network provides an approximate solution via a forward pass.
 
-```python
-def solve_genetic(obj, constraints, bounds=(0, 10), ngen=50, pop_size=50, cxpb=0.7, mutpb=0.2):
-    creator.create("FitnessMin", base.Fitness, weights=(-1.0,))
-    creator.create("Individual", list, fitness=creator.FitnessMin)
-    toolbox = base.Toolbox()
-    
-    # Initialize random integer genes within bounds
-    toolbox.register("attr_int", random.randint, bounds[0], bounds[1])
-    toolbox.register("individual", tools.initRepeat, creator.Individual, 
-                     toolbox.attr_int, n=len(obj))
-```
+The solution quality (objective value and feasibility) and computational time for each method are recorded.
 
-### 3.2 Fitness Function Design
+## Discussion: Why Are Genetic Algorithms Slower?  
+Despite their flexibility and general applicability, GAs tend to be slower than specialized methods like the simplex algorithm for several reasons:
 
-The fitness function incorporates both the objective value and constraint violations:
+- **Iterative Evolution**: Requires multiple generations to converge.
+- **Fitness Evaluation Overhead**: Each candidate must be evaluated in each generation.
+- **General-Purpose Nature**: Unlike simplex, GAs do not exploit the linear structure of LPs.
+- **Algorithmic Overhead**: Involves additional operations like mutation and crossover.
+- **Convergence Uncertainty**: No fixed iteration limit ensures convergence.
 
-\[
-f(\chi) = \begin{cases}
-\sum_{j=1}^n c_jx_j & \text{if feasible} \\
-M + \sum_{i=1}^m \max(0, \sum_{j=1}^n a_{ij}x_j - b_i) & \text{otherwise}
-\end{cases}
-\]
+## Future Improvements  
+- **Advanced GA Operators and Parallelization**: Implementing more sophisticated genetic operators and parallelizing fitness evaluations could reduce the overhead.
+- **Optimizing Neural Network Inference**: Using TensorFlow Lite or ONNX Runtime may improve inference speed.
+- **Hybrid Approaches**: Combining neural networks with classical solvers for improved performance.
 
-where:
-- $M$ is a large penalty constant
-- The second term represents the sum of constraint violations
-
-Implementation:
-```python
-def evaluate_fitness(individual, obj, constraints):
-    # Calculate objective value
-    obj_value = sum(x * c for x, c in zip(individual, obj))
-    
-    # Calculate constraint violations
-    violations = sum(
-        max(0, sum(x * c for x, c in zip(individual, con[:-1])) - con[-1])
-        for con in constraints
-    )
-    
-    # Return fitness with penalty if constraints are violated
-    return (obj_value + PENALTY_FACTOR * violations,)
-```
-
-### 3.3 Genetic Operators
-
-#### 3.3.1 Crossover
-We implement a two-point crossover with probability $p_c$:
-
-```python
-toolbox.register("mate", tools.cxTwoPoint)
-```
-
-#### 3.3.2 Mutation
-Uniform integer mutation with probability $p_m$:
-
-```python
-toolbox.register("mutate", tools.mutUniformInt, low=bounds[0], up=bounds[1], 
-                 indpb=0.1)
-```
-
-#### 3.3.3 Selection
-Tournament selection with size 3:
-
-```python
-toolbox.register("select", tools.selTournament, tournsize=3)
-```
-
-## 4. Solution Quality Analysis
-
-### 4.1 Performance Metrics
-
-We define several key metrics to evaluate solution quality:
-
-1. **Relative Gap:**
-\[
-\epsilon = \frac{|z^*_{\text{GA}} - z^*_{\text{PuLP}}|}{|z^*_{\text{PuLP}}|} \times 100\%
-\]
-
-2. **Time Efficiency:**
-\[
-\eta = \frac{t_{\text{PuLP}}}{t_{\text{GA}}}
-\]
-
-3. **Feasibility Rate:**
-\[
-\phi = \frac{\text{Number of Feasible Solutions}}{\text{Total Population Size}}
-\]
-
-### 4.2 Implementation of Metrics
-
-```python
-def calculate_metrics(results):
-    return {
-        "mean_gap": np.mean([r["objective_diff"] for r in results]),
-        "median_gap": np.median([r["objective_diff"] for r in results]),
-        "max_gap": np.max([r["objective_diff"] for r in results]),
-        "time_ratio": np.mean([r["pulp_time"]/r["ga_time"] for r in results]),
-        "feasibility_rate": np.mean([r["ga_feasible"] for r in results])
-    }
-```
-
-## 5. Computational Results
-
-### 5.1 Test Problem Characteristics
-
-| Problem Size | Variables | Constraints | Density | Integer Variables |
-|-------------|-----------|-------------|---------|-------------------|
-| Small       | 10-50     | 5-25        | 0.2     | All              |
-| Medium      | 51-200    | 26-100      | 0.1     | All              |
-| Large       | 201-1000  | 101-500     | 0.05    | All              |
-
-### 5.2 Performance Results
-
-```python
-def save_results(results, metrics, file_path="results.xlsx"):
-    """
-    Save detailed computational results to Excel file
-    """
-    wb = Workbook()
-    ws_problems = wb.active
-    ws_problems.title = "Problem Details"
-    
-    # Headers
-    headers = ["Problem ID", "Variables", "Constraints", "PuLP Time", 
-              "GA Time", "PuLP Objective", "GA Objective", "Gap"]
-    ws_problems.append(headers)
-    
-    # Data
-    for idx, r in enumerate(results):
-        ws_problems.append([
-            idx,
-            len(r["objective"]),
-            len(r["constraints"]),
-            r["math_solution"]["solve_time"],
-            r["ga_solution"]["solve_time"],
-            r["math_solution"]["objective_value"],
-            r["ga_solution"]["objective_value"],
-            r["objective_diff"]
-        ])
-```
-
-## 6. Discussion and Analysis
-
-### 6.1 Comparative Performance
-
-The experimental results reveal several key insights:
-
-1. **Solution Quality**
-   - PuLP consistently finds optimal solutions
-   - GA solutions average within 5-15% of optimal
-   - Solution quality deteriorates with problem size for GA
-
-2. **Computational Efficiency**
-   - GA significantly faster for large problems
-   - PuLP more efficient for small to medium problems
-   - Crossover point occurs around 200 variables
-
-3. **Scalability**
-   - PuLP time grows exponentially with problem size
-   - GA time grows linearly with population size and generations
-   - Memory usage favors GA for large problems
-
-### 6.2 Implementation Considerations
-
-The implementation revealed several practical considerations:
-
-1. **PuLP Advantages**
-   - Guaranteed optimality
-   - Robust constraint handling
-   - No parameter tuning required
-   - Clear solution status
-
-2. **GA Advantages**
-   - Faster convergence for large problems
-   - Lower memory requirements
-   - Parallelization potential
-   - Flexibility in fitness function design
-
-## 7. Future Research Directions
-
-### 7.1 Algorithm Enhancements
-
-1. **Hybrid Approaches**
-   - GA-guided branch and bound
-   - PuLP-seeded initial populations
-   - Local search integration
-
-2. **Performance Improvements**
-   - Parallel GA implementation
-   - Adaptive parameter tuning
-   - Problem-specific operators
-
-### 7.2 Extended Applications
-
-1. **Problem Classes**
-   - Mixed-integer programming
-   - Multi-objective optimization
-   - Constraint programming
-
-2. **Real-world Applications**
-   - Scheduling problems
-   - Network design
-   - Resource allocation
+## References  
+- [SciPy linprog documentation](https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.linprog.html)  
+- [TensorFlow Keras API](https://www.tensorflow.org/api_docs/python/tf/keras)  
+- Literature on genetic algorithms, neural networks, and hybrid optimization methods.
