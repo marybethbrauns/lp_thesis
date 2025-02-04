@@ -5,7 +5,7 @@
 # A Comparative Study of AI-Based Approaches to Linear Programming:  
 ## Classical Methods, Genetic Algorithms, and Neural Networks  
 
-## Overview  
+## Overview 
 This project explores different approaches to solving linear programming (LP) problems. In particular, it compares the performance of a traditional exact solver (using SciPy's HiGHS simplex method) with two AI-based methods:
 
 - A Genetic Algorithm (GA) implementation, which includes a warm-start technique to leverage information from previous similar problems.
@@ -13,23 +13,76 @@ This project explores different approaches to solving linear programming (LP) pr
 
 The main goal is to evaluate each method in terms of solution quality, feasibility, and computational time. Additionally, the trade-offs between accuracy and speed are discussed in detail. Although AI-based methods offer flexibility and potential advantages in generalization and hybrid applications, they often come at the cost of increased computational overhead compared to specialized methods.
 
-## Background  
-### Linear Programming (LP)  
-Linear Programming is an optimization technique used to find the best solution (maximum or minimum) for a linear objective function subject to a set of linear constraints. A general LP problem is formulated as follows:
+## 1. Introduction and Mathematical Foundations
 
-#### Objective Function:  
-\[ \text{Minimize: } Z = c_1 x_1 + c_2 x_2 + \dots + c_n x_n \]
+# Standard Form
 
-#### Subject to Constraints:  
-\[ a_{11} x_1 + a_{12} x_2 + \dots + a_{1n} x_n \leq b_1 \]
-\[ a_{21} x_1 + a_{22} x_2 + \dots + a_{2n} x_n \leq b_2 \]
-\[ \vdots \]
-\[ a_{m1} x_1 + a_{m2} x_2 + \dots + a_{mn} x_n \leq b_m \]
+The optimization problem seeks to minimize a linear objective function subject to linear constraints. Here's the mathematical formulation:
 
-#### And:  
-\[ x_1, x_2, \dots, x_n \geq 0 \]
+$$
+\text{Minimize } Z = c_1x_1 + c_2x_2 + \dots + c_nx_n
+$$
 
-Classical LP solvers such as the Simplex Method or Interior-Point Methods exploit the problem’s linearity and convexity to obtain exact solutions rapidly.
+Subject to the following constraints:
+
+$$
+\begin{aligned}
+a_{11}x_1 + a_{12}x_2 + \dots + a_{1n}x_n &\leq b_1 \\
+a_{21}x_1 + a_{22}x_2 + \dots + a_{2n}x_n &\leq b_2 \\
+&\vdots \\
+a_{m1}x_1 + a_{m2}x_2 + \dots + a_{mn}x_n &\leq b_m
+\end{aligned}
+$$
+
+With integer constraints:
+
+$$
+x_1, x_2, \dots, x_n \in \mathbb{Z}
+$$
+
+And non-negativity conditions:
+
+$$
+x_i \geq 0 \quad \forall i \in \{1, \dots, n\}
+$$
+
+# Matrix Notation
+
+For computational implementation, we can express the problem more compactly using matrix notation:
+
+$$
+\text{Minimize } \quad c^T x
+$$
+
+Subject to:
+
+$$
+\begin{pmatrix}
+a_{11} & a_{12} & \dots & a_{1n} \\
+a_{21} & a_{22} & \dots & a_{2n} \\
+\vdots & \vdots & \ddots & \vdots \\
+a_{m1} & a_{m2} & \dots & a_{mn}
+\end{pmatrix}
+\begin{pmatrix}
+x_1 \\
+x_2 \\
+\vdots \\
+x_n
+\end{pmatrix}
+\leq
+\begin{pmatrix}
+b_1 \\
+b_2 \\
+\vdots \\
+b_m
+\end{pmatrix}
+$$
+
+With constraints:
+
+$$
+x \in \mathbb{Z}^n, \quad x \geq 0
+$$
 
 ### AI-Based Approaches  
 While classical methods are highly optimized for linear problems, AI-based methods have their own merits, especially in more general or complex scenarios. Two notable approaches are:
