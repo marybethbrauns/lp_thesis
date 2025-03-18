@@ -1,3 +1,6 @@
+# Mary ELizabeth Brauns Senior Research Advised by Dr. David Murphy
+## Hillsdale College Department of Mathematics
+
 # Enhanced Integer Linear Programming Solver Framework: A Comparative Analysis
 
 ## Abstract
